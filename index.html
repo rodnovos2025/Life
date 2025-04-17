@@ -1,0 +1,250 @@
+<!DOCTYPE html>  <html lang="ru">  
+<head>  
+  <meta charset="UTF-8">  
+  <title>Справочник грибов</title>  
+  <link rel="preconnect" href="https://fonts.googleapis.com">  
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;700&display=swap" rel="stylesheet">  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">  
+  <style>  
+    * { box-sizing: border-box; }  html, body {  
+  margin: 0;  
+  padding: 0;  
+  font-family: 'Comfortaa', sans-serif;  
+  background-color: #121212;  
+  color: #f0f0f0;  
+  font-size: 1.3em;  
+}  
+
+body {  
+  padding: 1em;  
+}  
+
+input, button {  
+  width: 100%;  
+  padding: 1.2em 1.5em;  
+  margin: 0.8em 0;  
+  font-size: 1.2em;  
+  border-radius: 1em;  
+  border: none;  
+  background-color: #1f1f1f;  
+  color: #eee;  
+}  
+
+button {  
+  font-weight: bold;  
+  background-color: #333;  
+  cursor: pointer;  
+}  
+
+button:hover {  
+  background-color: #444;  
+  color: #66ffcc;  
+}  
+
+.list {  
+  display: flex;  
+  flex-direction: column;  
+  gap: 1em;  
+  margin-top: 1em;  
+}  
+
+.item {  
+  background: #1e1e1e;  
+  border-radius: 1em;  
+  padding: 0.8em;  
+  box-shadow: 0 0 10px #000;  
+  cursor: pointer;  
+  font-size: 0.95em;  
+}  
+
+.item img {  
+  width: 100%;  
+  border-radius: 0.5em;  
+  margin-bottom: 0.5em;  
+}  
+
+.loader {  
+  text-align: center;  
+  padding: 1.5em;  
+  color: #aaa;  
+  font-size: 1.1em;  
+}  
+
+.modal {  
+  position: fixed;  
+  top: 0; left: 0; right: 0; bottom: 0;  
+  background: rgba(0, 0, 0, 0.95);  
+  display: none;  
+  align-items: center;  
+  justify-content: center;  
+  z-index: 1000;  
+  padding: 1em;  
+  overflow-y: auto;  
+}  
+
+.modal-content {  
+  position: relative;  
+  background: #1f1f1f;  
+  border-radius: 1em;  
+  padding: 1.5em;  
+  width: 100%;  
+  max-width: 700px;  
+  max-height: 90vh;  
+  overflow-y: auto;  
+}  
+
+.modal img {  
+  width: 100%;  
+  border-radius: 0.5em;  
+  margin: 1em 0;  
+}  
+
+.close {  
+  position: absolute;  
+  top: 0.5em;  
+  right: 0.8em;  
+  font-size: 2em;  
+  cursor: pointer;  
+  color: #ccc;  
+}  
+
+.close:hover {  
+  color: #fff;  
+}  
+
+.name-row {  
+  display: flex;  
+  justify-content: space-between;  
+  align-items: center;  
+  gap: 1em;  
+  flex-wrap: wrap;  
+}  
+
+.wiki-icon {  
+  font-size: 1.4em;  
+  color: #66ccff;  
+}  
+
+h2 {  
+  font-size: 1.2em;  
+  margin: 0;  
+}  
+
+p {  
+  margin: 0.4em 0;  
+}
+
+  </style>  
+</head>  
+<body>  
+  <input id="search" placeholder="Введите название" list="suggestions" oninput="showSuggestions(this.value)">  
+  <datalist id="suggestions"></datalist>  
+  <button onclick="searchMushroom()">Поиск</button>  
+  <button onclick="resetAndLoad()">Все виды</button>    <div id="list" class="list"></div>  
+  <div id="loader" class="loader"></div>    <div id="modal" class="modal" onclick="closeModal(event)">  
+    <div class="modal-content" id="modalContent"></div>  
+    <div class="close" onclick="closeModal(event)">&times;</div>  
+  </div>    <script>  
+    let page = 1, loading = false, finished = false, started = false;  
+  
+    async function showSuggestions(query) {  
+      if (!query) return;  
+      const res = await fetch(`https://api.inaturalist.org/v1/taxa/autocomplete?q=${encodeURIComponent(query)}&locale=ru`);  
+      const data = await res.json();  
+      const datalist = document.getElementById('suggestions');  
+      datalist.innerHTML = '';  
+      data.results.forEach(item => {  
+        const name = item.preferred_common_name || item.name;  
+        const option = document.createElement('option');  
+        option.value = name;  
+        datalist.appendChild(option);  
+      });  
+    }  
+  
+    async function searchMushroom() {  
+      const query = document.getElementById('search').value.trim();  
+      if (!query) return;  
+      const res = await fetch(`https://api.inaturalist.org/v1/taxa/autocomplete?q=${encodeURIComponent(query)}&locale=ru`);  
+      const data = await res.json();  
+      const taxon = data.results?.[0];  
+      if (taxon) showMushroomInfo(taxon.id);  
+    }  
+  
+    async function showMushroomInfo(taxonId) {  
+      const res = await fetch(`https://api.inaturalist.org/v1/taxa/${taxonId}?locale=ru`);  
+      const data = await res.json();  
+      const taxon = data.results?.[0];  
+      if (!taxon) return;  
+  
+      const name = taxon.preferred_common_name || taxon.name;  
+      const latin = taxon.name;  
+      const obs = taxon.observations_count || 0;  
+      const photos = taxon.taxon_photos?.map(p => p.photo?.medium_url).filter(Boolean) || [];  
+      const wiki = taxon.wikipedia_url;  
+  
+      const modal = document.getElementById('modal');  
+      const content = document.getElementById('modalContent');  
+  
+      content.innerHTML = `  
+        <div class="name-row">  
+          <h2>${name}</h2>  
+          ${wiki ? `<a class="wiki-icon" href="${wiki}" target="_blank"><i class="fab fa-wikipedia-w"></i></a>` : ''}  
+        </div>  
+        <p><em>${latin}</em></p>  
+        <p><strong>Наблюдений:</strong> ${obs}</p>  
+        ${photos.map(src => `<img src="${src}" alt="${name}">`).join('')}  
+      `;  
+      modal.style.display = 'flex';  
+    }  
+  
+    function closeModal(e) {  
+      if (e.target.id === 'modal' || e.target.classList.contains('close')) {  
+        document.getElementById('modal').style.display = 'none';  
+      }  
+    }  
+  
+    async function loadMore() {  
+      if (!started || loading || finished) return;  
+      loading = true;  
+      document.getElementById('loader').innerText = 'Загрузка...';  
+  
+      const res = await fetch(`https://api.inaturalist.org/v1/taxa?taxon_id=47170&rank=species&per_page=30&page=${page}&locale=ru`);  
+      const data = await res.json();  
+  
+      if (data.results.length === 0) {  
+        finished = true;  
+        document.getElementById('loader').innerText = 'Все загружено.';  
+        return;  
+      }  
+  
+      const list = document.getElementById('list');  
+      data.results.forEach(taxon => {  
+        const name = taxon.preferred_common_name || taxon.name;  
+        const img = taxon.default_photo?.medium_url;  
+        if (!img) return;  
+  
+        const div = document.createElement('div');  
+        div.className = 'item';  
+        div.innerHTML = `<img src="${img}"><p><strong>${name}</strong></p>`;  
+        div.onclick = () => showMushroomInfo(taxon.id);  
+        list.appendChild(div);  
+      });  
+  
+      page++;  
+      loading = false;  
+      document.getElementById('loader').innerText = '';  
+    }  
+  
+    function resetAndLoad() {  
+      page = 1; loading = false; finished = false; started = true;  
+      document.getElementById('list').innerHTML = '';  
+      document.getElementById('loader').innerText = '';  
+      loadMore();  
+    }  
+  
+    window.addEventListener('scroll', () => {  
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 300) loadMore();  
+    });  
+  </script>  </body>  
+</html>
+
